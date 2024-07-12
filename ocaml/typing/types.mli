@@ -756,6 +756,7 @@ module type Wrapped = sig
       val_zero_alloc: Zero_alloc.t;
       val_attributes: Parsetree.attributes;
       val_uid: Uid.t;
+      val_bound_in_let_rec: [`Bound_in_let_rec | `Not_bound_in_let_rec];
     }
 
   type module_type =

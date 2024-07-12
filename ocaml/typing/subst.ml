@@ -761,6 +761,7 @@ let rec subst_lazy_value_description s descr =
       | _ -> descr.val_zero_alloc);
     val_attributes = attrs s descr.val_attributes;
     val_uid = descr.val_uid;
+    val_bound_in_let_rec = descr.val_bound_in_let_rec;
   }
 
 and subst_lazy_module_decl scoping s md =

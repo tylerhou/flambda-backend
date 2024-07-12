@@ -2945,6 +2945,7 @@ let transl_value_decl env loc valdecl =
         val_attributes = valdecl.pval_attributes; val_modalities = modalities;
         val_zero_alloc = zero_alloc;
         val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+        val_bound_in_let_rec = `Not_bound_in_let_rec;
       }
   | [] ->
       raise (Error(valdecl.pval_loc, Val_in_structure))
@@ -2990,6 +2991,7 @@ let transl_value_decl env loc valdecl =
         val_attributes = valdecl.pval_attributes; val_modalities = modalities;
         val_zero_alloc = Zero_alloc.default;
         val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+        val_bound_in_let_rec = `Not_bound_in_let_rec;
       }
   in
   let (id, newenv) =

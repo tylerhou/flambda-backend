@@ -9,11 +9,14 @@ module M = struct
   let f = f
 end
 
-let should_be_tail () =
+(* These calls should not be inferred as tail-calls because the last application's
+   function is not defined (locally) via a let rec. *)
+let foo () =
   f "hello";
   f "goodbye"
 
-let shouldn't_be_tail () =
+let bar () =
   f "hello";
   M.f "goodbye"
+  
 

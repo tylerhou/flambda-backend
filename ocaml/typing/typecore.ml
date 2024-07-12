@@ -381,12 +381,14 @@ let position_and_mode_default = {
   region_mode = None;
 }
 
-(* Calls to functions that have a dot (e.g. [M.f]) are inferred to be nontail. *)
-let should_infer_nontail maybe_ident =
+(* Calls to functions that were bound via a let rec are inferred to be tail calls. *)
+let should_infer_tail env maybe_ident =
   match maybe_ident with
-  | Some ident -> begin match ident with
-    | Longident.Ldot _ -> true
-    | _ -> false
+  | Some ident -> begin
+      let (_, value) = Env.find_value_by_name ident env in
+      match value.val_bound_in_let_rec with
+      | `Bound_in_let_rec -> true
+      | `Not_bound_in_let_rec -> false
     end
   | None -> false
 
@@ -405,10 +407,12 @@ let position_and_mode env (expected_mode : expected_mode) sexp ~maybe_ident
   match expected_mode.position with
   | RTail (m ,FTail) -> begin
       match requested with
-      | None when should_infer_nontail maybe_ident ->
-          {apply_position = Nontail; region_mode = None}
-      | Some `Tail | Some `Tail_if_possible | None ->
+      | Some `Tail | Some `Tail_if_possible ->
           {apply_position = Tail; region_mode = Some m}
+      | None -> if (should_infer_tail env maybe_ident) then
+          {apply_position = Tail; region_mode = Some m}
+        else
+          {apply_position = Nontail; region_mode = None}
       | Some `Nontail -> {apply_position = Nontail; region_mode = None}
     end
   | RNontail | RTail(_, FNontail) -> begin
@@ -1124,7 +1128,7 @@ let maybe_add_pattern_variables_ghost loc_let env pv =
 let iter_pattern_variables_type f : pattern_variable list -> unit =
   List.iter (fun {pv_type; _} -> f pv_type)
 
-let add_pattern_variables ?check ?check_as env pv =
+let add_pattern_variables ?check ?check_as ?(in_let_rec = false) env pv =
   List.fold_right
     (fun {pv_id; pv_uid; pv_mode; pv_type; pv_loc; pv_as_var; pv_attributes}
       env ->
@@ -1133,7 +1137,9 @@ let add_pattern_variables ?check ?check_as env pv =
          {val_type = pv_type; val_kind = Val_reg; Types.val_loc = pv_loc;
           val_attributes = pv_attributes; val_modalities = Modality.Value.id;
           val_zero_alloc = Zero_alloc.default;
-          val_uid = pv_uid
+          val_uid = pv_uid;
+          val_bound_in_let_rec = if in_let_rec then `Bound_in_let_rec else
+              `Not_bound_in_let_rec;
          } env
     )
     pv env
@@ -2931,6 +2937,7 @@ let type_class_arg_pattern cl_num val_env met_env l spat =
             ; val_modalities = Modality.Value.id
             ; val_loc = pv_loc
             ; val_uid = pv_uid
+            ; val_bound_in_let_rec = `Not_bound_in_let_rec
             }
             val_env
          in
@@ -2943,6 +2950,7 @@ let type_class_arg_pattern cl_num val_env met_env l spat =
             ; val_modalities = Modality.Value.id
             ; val_loc = pv_loc
             ; val_uid = pv_uid
+            ; val_bound_in_let_rec = `Not_bound_in_let_rec
             }
             met_env
          in
@@ -7470,6 +7478,7 @@ and type_argument ?explanation ?recarg env (mode : expected_mode) sarg
             val_modalities = Modality.Value.id;
             val_loc = Location.none;
             val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+            val_bound_in_let_rec = `Not_bound_in_let_rec;
           }
         in
         let exp_env = Env.add_value ~mode id desc env in
@@ -8434,7 +8443,7 @@ and type_let ?check ?check_strict ?(force_toplevel = false)
          we type-checked expressions before patterns, then we could call
          [add_module_variables] here.
       *)
-      let new_env = add_pattern_variables new_env pvs in
+      let new_env = add_pattern_variables new_env pvs ~in_let_rec:(is_recursive) in
       let mode_pat_typ_list =
         List.map
           (fun (m, pat) ->

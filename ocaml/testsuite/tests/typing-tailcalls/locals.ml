@@ -45,10 +45,35 @@ let implicit_tail () =
   let local_ str = "hello" in
   f str
 [%%expect {|
-Line 3, characters 4-7:
-3 |   f str
-        ^^^
+val implicit_tail : unit -> unit = <fun>
+|}]
+
+
+let rec implicit_tail n str =
+  let local_ str = "hello" in
+  if n > 0 then implicit_tail (n - 1) str else f str
+[%%expect {|
+Line 3, characters 38-41:
+3 |   if n > 0 then implicit_tail (n - 1) str else f str
+                                          ^^^
 Error: This value escapes its region.
   Hint: This argument cannot be local,
   because it is an argument in a tail call.
 |}]
+
+
+(* Check that locals cannot be passed into mutually recursive tail calls. *)
+let rec implicit_tail_foo n str =
+  let local_ str = "hello" in
+  if n > 0 then implicit_tail_bar (n - 2) str else f str
+and implicit_tail_bar n str =
+  implicit_tail_foo (n + 1) str
+[%%expect {|
+Line 3, characters 42-45:
+3 |   if n > 0 then implicit_tail_bar (n - 2) str else f str
+                                              ^^^
+Error: This value escapes its region.
+  Hint: This argument cannot be local,
+  because it is an argument in a tail call.
+|}]
+
